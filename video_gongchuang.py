@@ -10,7 +10,8 @@ import sys
 import os
 import datetime
 sys.path.append('/home/yyh/dev_ws/src/yyh_image/yyh_image/')
-
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
 from utils_usb import *
 from filter import *
 from Code_2D import *
@@ -39,28 +40,17 @@ class ImagePublisher():
         self.task_state=2;PrintState(self.task_state)
         self.IFLine = 0#先不巡线检测
         #镜头初始化
-        self.usb1 = VideoStream(0)#机械臂摄像头
-        self.usb2 = VideoStream(2)#定位规划摄像头
-
-
-        #录制视频代码
-        self.video_dir = os.path.join(os.path.dirname(__file__), 'saved_videos')
-        os.makedirs(self.video_dir, exist_ok=True)#生成目录
-
-         # 生成带时间戳的文件名
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.video_paths = {
-            'usb1': os.path.join(self.video_dir, f'usb1_{timestamp}.avi'),
-            'usb2': os.path.join(self.video_dir, f'usb2_{timestamp}.avi')
+        self.usb1 = VideoStream('use_videos/usb1')#机械臂摄像头
+        self.usb2 = VideoStream('use_videos/usb2')#定位规划摄像头
+        self.plot_data = {
+            'frame': [],
+            'raw_x': [],
+            'raw_y': [],
+            'kf_x': [],
+            'kf_y': [],
+            'timestamp': []
         }
-        
-        # 视频写入器（稍后初始化）
-        self.writers = {
-            'usb1': None,
-            'usb2': None
-        }
-        #串口同类类
-        #self.ser = SerialPort()
+        self.setup_realtime_plot()
         #x,y方向的偏差
         self.e_x = 0
         self.e_y = 0
@@ -76,54 +66,71 @@ class ImagePublisher():
         self.ticks = 0
         self.ProcessImage()
 
-    #初始化视频写入器
-    def init_writers(self, frame1, frame2):
-        """根据第一帧初始化视频写入器"""
-        fourcc = cv2.VideoWriter_fourcc(*'XVID')  # 实例化视频编码器
-        
-        # 初始化usb1的写入器
-        if frame1 is not None and self.writers['usb1'] is None:#第一帧，必须要求self.writers['usb1'] is None
-            h, w = frame1.shape[:2]
-            self.writers['usb1'] = cv2.VideoWriter(
-                self.video_paths['usb1'], 
-                fourcc, 
-                20.0,  # 帧率（根据实际情况调整）
-                (w, h)
-            )
-        
-        # 初始化usb2的写入器
-        if frame2 is not None and self.writers['usb2'] is None:
-            h, w = frame2.shape[:2]
-            self.writers['usb2'] = cv2.VideoWriter(
-                self.video_paths['usb2'], 
-                fourcc,
-                20.0,  # 帧率（根据实际情况调整）
-                (w, h)
-            )
-        
-        
     
+
+    def setup_realtime_plot(self):
+        """初始化实时绘图窗口"""
+        plt.ion()  # 开启交互模式
+        self.fig, (self.ax1, self.ax2) = plt.subplots(2, 1, figsize=(10, 8))
+        
+        # X坐标子图
+        self.line_raw_x, = self.ax1.plot([], [], 'r-', label='Raw X', alpha=0.5)
+        self.line_kf_x, = self.ax1.plot([], [], 'b-', label='KF X')
+        self.ax1.set_title('X Coordinate Comparison')
+        self.ax1.set_xlabel('Frame')
+        self.ax1.set_ylabel('Pixel')
+        self.ax1.grid(True)
+        self.ax1.legend()
+        
+        # Y坐标子图
+        self.line_raw_y, = self.ax2.plot([], [], 'g-', label='Raw Y', alpha=0.5)
+        self.line_kf_y, = self.ax2.plot([], [], 'm-', label='KF Y')
+        self.ax2.set_title('Y Coordinate Comparison')
+        self.ax2.set_xlabel('Frame')
+        self.ax2.set_ylabel('Pixel')
+        self.ax2.grid(True)
+        self.ax2.legend()
+
+    def record_data(self, pos):
+        """记录当前帧数据"""
+        self.plot_data['frame'].append(len(self.plot_data['frame'])+1)#####################
+        self.plot_data['raw_x'].append(pos[3])
+        self.plot_data['raw_y'].append(pos[4])
+        self.plot_data['kf_x'].append(pos[1])
+        self.plot_data['kf_y'].append(pos[2])
+        self.plot_data['timestamp'].append(time.time())
+
+    def update_realtime_plot(self):
+        """更新实时曲线"""
+        if len(self.plot_data['frame']) == 0:
+            return
+        
+        # 更新X坐标
+        self.line_raw_x.set_data(self.plot_data['frame'], self.plot_data['raw_x'])
+        self.line_kf_x.set_data(self.plot_data['frame'], self.plot_data['kf_x'])
+        self.ax1.relim()
+        self.ax1.autoscale_view()
+        
+        # 更新Y坐标
+        self.line_raw_y.set_data(self.plot_data['frame'], self.plot_data['raw_y'])
+        self.line_kf_y.set_data(self.plot_data['frame'], self.plot_data['kf_y'])
+        self.ax2.relim()
+        self.ax2.autoscale_view()
+        
+        plt.pause(0.001)
+
+
     def ProcessImage(self):
         #开始利用状态机控制两个摄像头的不同工作模式
         ind = 0
         while True:
+            time.sleep(0.1)
             precTick = self.ticks
             self.ticks = float(cv2.getTickCount())
             self.dT = float((self.ticks - precTick)/cv2.getTickFrequency())
             ind+=1
             frame1 = self.usb1.read()
             frame2 = self.usb2.read()
-             # 初始化视频写入器（第一次运行时）
-            self.init_writers(frame1, frame2)
-            
-            # 写入视频帧（确保帧有效）
-            try:
-                if frame1 is not None and self.writers['usb1'] is not None:
-                    self.writers['usb1'].write(frame1)
-                if frame2 is not None and self.writers['usb2'] is not None:
-                    self.writers['usb2'].write(frame2)
-            except Exception as e:
-                print(f"视频写入失败: {str(e)}")
             #巡线逻辑可以加在这里
             #需要巡线调整之前，在此处
             self.StateControl(ind,frame1,frame2)
@@ -234,6 +241,8 @@ class ImagePublisher():
         
         
         if len(list_usb1)>0 :
+            self.record_data(list_usb1)
+            self.update_realtime_plot()
             X,Y =GetWorldPosition(list_usb1[1],list_usb1[2],100)
             #print("X:",X,"Y:",Y,"mm")
             cv2.putText(frame2, "center:("+str(int(X))+","+str(int(-Y))+"mm"+")", (5,40), cv2.FONT_HERSHEY_SIMPLEX,.9, (0, 0, 255), 2)

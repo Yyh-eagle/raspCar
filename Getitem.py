@@ -47,9 +47,16 @@ def GetCenterColor_usb1(frame,kalmen,dT):
         
         ans.append(k_results[0])
         ans.append(k_results[1])
+        if(states is None):
+            ans.append(0)
+            ans.append(0)
+        else:
+            ans.append(states[0])
+            ans.append(states[1])
+        
         
         #cv2.circle(frame, (int(k_results[0]), int(k_results[1])),int(states[2]) , (255, 0, 0), 2)#在图中画出来
-        cv2.rectangle(frame, (int(k_results[0]) - 5, int(k_results[1]) - 5), (int(k_results[0]) + 5, int(k_results[1]) + 5), (255, 0, 255), -1)#紫色中心点
+        cv2.rectangle(frame, (int(k_results[0]) - 5, int(k_results[1]) - 5), (int(k_results[0]) + 5, int(k_results[1]) + 5), (255, 0, 0), -1)#紫色中心点
         #cv2.putText(frame, "center:("+str(int(k_results[0]))+","+str(int(k_results[1]))+")", (5,40), cv2.FONT_HERSHEY_SIMPLEX,.9, (0, 0, 255), 2)
         return ans
     else:

@@ -159,7 +159,7 @@ class KalmanFilter_circle:
  
         
         # 测量噪声协方差
-        self.kf.measurementNoiseCov = np.eye(self.meas_size, dtype=np.float32) * 1
+        self.kf.measurementNoiseCov = np.eye(self.meas_size, dtype=np.float32) *0.1
         
         # 初始误差协方差
         self.kf.errorCovPre = np.eye(self.state_size, dtype=np.float32)
