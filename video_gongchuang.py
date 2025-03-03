@@ -33,11 +33,8 @@ from pyzbar import pyzbar
 class ImagePublisher():
     #构造函数，初始化所有变量
     def __init__(self, name):
-        #super().__init__(name)#继承  
-
-        #状态机初始化并打印
-        #self.task_state=0;PrintState(self.task_state)
-        self.task_state=2;PrintState(self.task_state)
+        #状态机初始化
+        self.task_state=1;PrintState(self.task_state)
         self.IFLine = 0#先不巡线检测
         #镜头初始化
         self.usb1 = VideoStream('use_videos/usb1')#机械臂摄像头
@@ -68,63 +65,13 @@ class ImagePublisher():
 
     
 
-    def setup_realtime_plot(self):
-        """初始化实时绘图窗口"""
-        plt.ion()  # 开启交互模式
-        self.fig, (self.ax1, self.ax2) = plt.subplots(2, 1, figsize=(10, 8))
-        
-        # X坐标子图
-        self.line_raw_x, = self.ax1.plot([], [], 'r-', label='Raw X', alpha=0.5)
-        self.line_kf_x, = self.ax1.plot([], [], 'b-', label='KF X')
-        self.ax1.set_title('X Coordinate Comparison')
-        self.ax1.set_xlabel('Frame')
-        self.ax1.set_ylabel('Pixel')
-        self.ax1.grid(True)
-        self.ax1.legend()
-        
-        # Y坐标子图
-        self.line_raw_y, = self.ax2.plot([], [], 'g-', label='Raw Y', alpha=0.5)
-        self.line_kf_y, = self.ax2.plot([], [], 'm-', label='KF Y')
-        self.ax2.set_title('Y Coordinate Comparison')
-        self.ax2.set_xlabel('Frame')
-        self.ax2.set_ylabel('Pixel')
-        self.ax2.grid(True)
-        self.ax2.legend()
-
-    def record_data(self, pos):
-        """记录当前帧数据"""
-        self.plot_data['frame'].append(len(self.plot_data['frame'])+1)#####################
-        self.plot_data['raw_x'].append(pos[3])
-        self.plot_data['raw_y'].append(pos[4])
-        self.plot_data['kf_x'].append(pos[1])
-        self.plot_data['kf_y'].append(pos[2])
-        self.plot_data['timestamp'].append(time.time())
-
-    def update_realtime_plot(self):
-        """更新实时曲线"""
-        if len(self.plot_data['frame']) == 0:
-            return
-        
-        # 更新X坐标
-        self.line_raw_x.set_data(self.plot_data['frame'], self.plot_data['raw_x'])
-        self.line_kf_x.set_data(self.plot_data['frame'], self.plot_data['kf_x'])
-        self.ax1.relim()
-        self.ax1.autoscale_view()
-        
-        # 更新Y坐标
-        self.line_raw_y.set_data(self.plot_data['frame'], self.plot_data['raw_y'])
-        self.line_kf_y.set_data(self.plot_data['frame'], self.plot_data['kf_y'])
-        self.ax2.relim()
-        self.ax2.autoscale_view()
-        
-        plt.pause(0.001)
-
+    
 
     def ProcessImage(self):
         #开始利用状态机控制两个摄像头的不同工作模式
         ind = 0
         while True:
-            time.sleep(0.1)
+            #time.sleep(0.1)
             precTick = self.ticks
             self.ticks = float(cv2.getTickCount())
             self.dT = float((self.ticks - precTick)/cv2.getTickFrequency())
@@ -196,27 +143,37 @@ class ImagePublisher():
     def GetFromPlate(self,frame1,frame2,flag):
         """
         usb1 :寻找颜色，对准圆形的中心
+        
+        完成抓取任务
+        下一状态条件：ifcomplete从串口得到三次放置成功
+        下一状态：转移到粗加工区
+        """
+        """
+        usb1 :寻找颜色，对准圆形的中心
         usb2: 寻找颜色，对准方形的中心
         完成抓取任务
         下一状态条件：ifcomplete从串口得到三次放置成功
         下一状态：转移到粗加工区
         """
+        #任务控制
+        self.task_list = ['red','green','blue','red','green','blue']
         if flag == 1:
             task = self.task_list[0:3]
         else:
             task = self.task_list[3:6]
         
-
         list_usb1 = GetCenterColor_usb1(frame1,self.kalmen_usb1,self.dT)#找目标机械臂
-        list_usb2 = GetCenterColor_usb2(frame2,self.kalmen_usb2,self.dT)#找目标侧视镜头
-        
-        if(len(list_usb2)>0 and len(list_usb1)>0):
-            #if(is_data_stable(list_usb2[1],0) and task[self.task_id-1]==list_usb2[0] and is_data_stable(list_usb1[2],0)):#二者能匹配上
-            if(is_data_stable(list_usb2[1],0) and task[self.task_id-1]==list_usb2[0]):#二者能匹配上    
-                print(f"添加颜色{list_usb2[0]}")
-                print(f"串口通信，抓取{list_usb2[0]}的物料")
-                
-                self.CarPlate[self.task_id] = list_usb2[0]
+       
+        if(len(list_usb1)>0):
+            
+            self.record_data(list_usb1)
+            self.update_realtime_plot()
+            X,Y =GetWorldPosition(list_usb1[1],list_usb1[2],100)
+            cv2.putText(frame1, "center:("+str(int(X))+","+str(int(-Y))+"mm"+")", (5,40), cv2.FONT_HERSHEY_SIMPLEX,.9, (0, 0, 255), 2)
+            if(is_data_stable(list_usb1[1],0) and task[self.task_id-1]==list_usb1[0]):#二者能匹配上    
+                print(f"添加颜色{list_usb1[0]}")
+                print(f"串口通信，抓取{list_usb1[0]}的物料")
+                self.CarPlate[self.task_id] = list_usb1[0]
                 print(f"{self.CarPlate=}")
                 self.task_id +=1
                 self.task_complete  +=1
@@ -225,7 +182,6 @@ class ImagePublisher():
             self.task_id = 1#控制计数id恢复为0
             self.task_complete = 0
             self.task_state+=1;PrintState(self.task_state)
-
         
         #第一步：全部检测，传入图像，反馈目标坐标，
     def PutIntoCircle(self,frame1,frame2):
@@ -237,15 +193,15 @@ class ImagePublisher():
         下一状态：按顺序抓取三个物料，代码逻辑同state——2
         """
         
-        list_usb1 = GetCenterColor_usb1(frame2,self.kalmen_usb1,self.dT)#找目标机械臂
+        list_usb1 = GetCenterColor_usb1(frame1,self.kalmen_usb1,self.dT)#找目标机械臂
         
         
         if len(list_usb1)>0 :
             self.record_data(list_usb1)
             self.update_realtime_plot()
             X,Y =GetWorldPosition(list_usb1[1],list_usb1[2],100)
-            #print("X:",X,"Y:",Y,"mm")
-            cv2.putText(frame2, "center:("+str(int(X))+","+str(int(-Y))+"mm"+")", (5,40), cv2.FONT_HERSHEY_SIMPLEX,.9, (0, 0, 255), 2)
+            
+            cv2.putText(frame1, "center:("+str(int(X))+","+str(int(-Y))+"mm"+")", (5,40), cv2.FONT_HERSHEY_SIMPLEX,.9, (0, 0, 255), 2)
             if list_usb1[0] == 'green' and is_data_stable(list_usb1[2],0):#二者能匹配上
                 print(f"添加颜色绿色")
                 print(f"串口通信，对准了绿色的圆环")
@@ -278,6 +234,57 @@ class ImagePublisher():
         pass
         
     
+    def setup_realtime_plot(self):
+        """初始化实时绘图窗口"""
+        plt.ion()  # 开启交互模式
+        self.fig, (self.ax1, self.ax2) = plt.subplots(2, 1, figsize=(10, 8))
+        
+        # X坐标子图
+        self.line_raw_x, = self.ax1.plot([], [], 'r-', label='Raw X', alpha=0.5)
+        self.line_kf_x, = self.ax1.plot([], [], 'b-', label='KF X')
+        self.ax1.set_title('X Coordinate Comparison')
+        self.ax1.set_xlabel('Frame')
+        self.ax1.set_ylabel('Pixel')
+        self.ax1.grid(True)
+        self.ax1.legend()
+        
+        # Y坐标子图
+        self.line_raw_y, = self.ax2.plot([], [], 'g-', label='Raw Y', alpha=0.5)
+        self.line_kf_y, = self.ax2.plot([], [], 'm-', label='KF Y')
+        self.ax2.set_title('Y Coordinate Comparison')
+        self.ax2.set_xlabel('Frame')
+        self.ax2.set_ylabel('Pixel')
+        self.ax2.grid(True)
+        self.ax2.legend()
+
+    def record_data(self, pos):
+        """记录当前帧数据"""
+        self.plot_data['frame'].append(len(self.plot_data['frame'])+1)#####################
+        self.plot_data['raw_x'].append(pos[3])
+        self.plot_data['raw_y'].append(pos[4])
+        self.plot_data['kf_x'].append(pos[1])
+        self.plot_data['kf_y'].append(pos[2])
+        self.plot_data['timestamp'].append(time.time())
+
+    def update_realtime_plot(self):
+        """更新实时曲线"""
+        if len(self.plot_data['frame']) == 0:
+            return
+        
+        # 更新X坐标
+        self.line_raw_x.set_data(self.plot_data['frame'], self.plot_data['raw_x'])
+        self.line_kf_x.set_data(self.plot_data['frame'], self.plot_data['kf_x'])
+        self.ax1.relim()
+        self.ax1.autoscale_view()
+        
+        # 更新Y坐标
+        self.line_raw_y.set_data(self.plot_data['frame'], self.plot_data['raw_y'])
+        self.line_kf_y.set_data(self.plot_data['frame'], self.plot_data['kf_y'])
+        self.ax2.relim()
+        self.ax2.autoscale_view()
+        
+        plt.pause(0.001)
+
     def __del__(self):#析构函数
         # 释放摄像头和关闭窗口
         self.usb1.Release()

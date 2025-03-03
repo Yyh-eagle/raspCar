@@ -39,8 +39,8 @@ class ImagePublisher():
         self.task_state=2;PrintState(self.task_state)
         self.IFLine = 0#先不巡线检测
         #镜头初始化
-        self.usb1 = VideoStream(0)#机械臂摄像头
-        self.usb2 = VideoStream(2)#定位规划摄像头
+        self.usb1 = VideoStream(2)#机械臂摄像头
+        self.usb2 = VideoStream(0)#定位规划摄像头
 
 
         #录制视频代码
@@ -113,6 +113,7 @@ class ImagePublisher():
             ind+=1
             frame1 = self.usb1.read()
             frame2 = self.usb2.read()
+            frame2 = cv2.flip(frame2, 0)
              # 初始化视频写入器（第一次运行时）
             self.init_writers(frame1, frame2)
             
@@ -194,6 +195,7 @@ class ImagePublisher():
         下一状态条件：ifcomplete从串口得到三次放置成功
         下一状态：转移到粗加工区
         """
+        self.task_list = ['red','green','blue','red','green','blue']
         if flag == 1:
             task = self.task_list[0:3]
         else:
@@ -201,15 +203,14 @@ class ImagePublisher():
         
 
         list_usb1 = GetCenterColor_usb1(frame1,self.kalmen_usb1,self.dT)#找目标机械臂
-        list_usb2 = GetCenterColor_usb2(frame2,self.kalmen_usb2,self.dT)#找目标侧视镜头
-        
-        if(len(list_usb2)>0 and len(list_usb1)>0):
-            #if(is_data_stable(list_usb2[1],0) and task[self.task_id-1]==list_usb2[0] and is_data_stable(list_usb1[2],0)):#二者能匹配上
-            if(is_data_stable(list_usb2[1],0) and task[self.task_id-1]==list_usb2[0]):#二者能匹配上    
-                print(f"添加颜色{list_usb2[0]}")
-                print(f"串口通信，抓取{list_usb2[0]}的物料")
+       
+        if(len(list_usb1)>0):
+            X,Y =GetWorldPosition(list_usb1[1],list_usb1[2],100)
+            if(is_data_stable(list_usb1[1],0) and task[self.task_id-1]==list_usb1[0]):#二者能匹配上    
+                print(f"添加颜色{list_usb1[0]}")
+                print(f"串口通信，抓取{list_usb1[0]}的物料")
                 
-                self.CarPlate[self.task_id] = list_usb2[0]
+                self.CarPlate[self.task_id] = list_usb1[0]
                 print(f"{self.CarPlate=}")
                 self.task_id +=1
                 self.task_complete  +=1
@@ -230,13 +231,12 @@ class ImagePublisher():
         下一状态：按顺序抓取三个物料，代码逻辑同state——2
         """
         
-        list_usb1 = GetCenterColor_usb1(frame2,self.kalmen_usb1,self.dT)#找目标机械臂
+        list_usb1 = GetCenterColor_usb1(frame1,self.kalmen_usb1,self.dT)#找目标机械臂
         
         
         if len(list_usb1)>0 :
             X,Y =GetWorldPosition(list_usb1[1],list_usb1[2],100)
-            #print("X:",X,"Y:",Y,"mm")
-            cv2.putText(frame2, "center:("+str(int(X))+","+str(int(-Y))+"mm"+")", (5,40), cv2.FONT_HERSHEY_SIMPLEX,.9, (0, 0, 255), 2)
+            cv2.putText(frame1, "center:("+str(int(X))+","+str(int(-Y))+"mm"+")", (5,40), cv2.FONT_HERSHEY_SIMPLEX,.9, (0, 0, 255), 2)
             if list_usb1[0] == 'green' and is_data_stable(list_usb1[2],0):#二者能匹配上
                 print(f"添加颜色绿色")
                 print(f"串口通信，对准了绿色的圆环")

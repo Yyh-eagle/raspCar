@@ -56,7 +56,7 @@ def GetCenterColor_usb1(frame,kalmen,dT):
         
         
         #cv2.circle(frame, (int(k_results[0]), int(k_results[1])),int(states[2]) , (255, 0, 0), 2)#在图中画出来
-        cv2.rectangle(frame, (int(k_results[0]) - 5, int(k_results[1]) - 5), (int(k_results[0]) + 5, int(k_results[1]) + 5), (255, 0, 0), -1)#紫色中心点
+        cv2.rectangle(frame, (int(k_results[0]) - 2, int(k_results[1]) - 2), (int(k_results[0]) + 2, int(k_results[1]) + 2), (255, 0, 255), -1)#紫色中心点
         #cv2.putText(frame, "center:("+str(int(k_results[0]))+","+str(int(k_results[1]))+")", (5,40), cv2.FONT_HERSHEY_SIMPLEX,.9, (0, 0, 255), 2)
         return ans
     else:
@@ -69,7 +69,6 @@ def GetCenterColor_usb2(frame,kalmen,dT):
     """
     k_results = []
     closest_color = "None"
-    states = []
     #得到颜色掩膜
     mask_red = color_detect(frame,"red")
     mask_green = color_detect(frame,"green")
@@ -102,21 +101,22 @@ def GetCenterColor_usb2(frame,kalmen,dT):
         result[mask_blue > 0] = [255, 255, 255]  # 蓝色为白色
         eros =  ErosAndDia(result)
         
-    state =cnts_draw(frame,eros,"max")
+    state =cnts_draw(frame,eros,"max")# return [x,y,w,h]
+
     if len(state)==0:
         k_results = kalmen.KalmenCalculate(state,dT)
     else:
-        
-        k_results = kalmen.KalmenCalculate([state],dT)
+        k_results = kalmen.KalmenCalculate([state],dT)#return [center_x[0],center_y[0],x_left[0],y_left[0],x_right[0],y_right[0],width[0],height[0]]
     #print(k_results)
     if(len(k_results)>0):
         if k_results[6]>1e-2:
+            if len(state)==0:
+                result = [closest_color,k_results[0],k_results[1],0,0]
+            else:
+                result = [closest_color,k_results[0],k_results[1],state[0],state[1]]
             
-            e_x = CaculateFeedback_X(K_2dcode,k_results[0])
-            
-            result = [closest_color,e_x]
             cv2.rectangle(frame, (int(k_results[2]), int(k_results[3])), (int(k_results[4]),int(k_results[5])), (255, 0, 0), 2)#在图中画出来
-            cv2.putText(frame, closest_color+'------'+str(e_x), (5,40), cv2.FONT_HERSHEY_SIMPLEX,.9, (0, 0, 255), 2)
+            cv2.putText(frame, closest_color, (5,40), cv2.FONT_HERSHEY_SIMPLEX,.9, (0, 0, 255), 2)
             
             return result
         else: return []

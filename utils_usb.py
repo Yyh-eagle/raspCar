@@ -168,7 +168,7 @@ def cnts_draw(img,res,color):
     """
     #这两个参数是设定颜色块的最大半径和最小半径，去除噪声干扰
     #print(color)
-    minRadius=15
+    minRadius=100
     maxRadius=1200
     canny = cv2.Canny(res,170,220)#Canny边缘检测算法，用来描绘图像中物体的边缘，（100，200为此函数的两个阈值，该阈值越小轮廓的细节越丰富）
     contours, hierarchy=cv2.findContours(canny,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)#寻找图像轮廓的函数，这里先用Canny算法得到只保留轮廓的图像方便轮廓的找寻
@@ -182,7 +182,7 @@ def cnts_draw(img,res,color):
         cv2.drawContours(img, max_cnt,-1,(0,255,0),2)#在原图上绘制这个最大轮廓
         (x,y,w,h) = cv2.boundingRect(max_cnt)#找到这个最大轮廓的最大外接矩形，返回的（x，y）为这个矩形右下角的顶点，w为宽度，h为高度
         area = cv2.contourArea(max_cnt)
-        #print(f"{area=}")
+        
         if area < (minRadius**2) * math.pi or area > (maxRadius**2) * math.pi:
         #    print("轮廓不合适")
             return []

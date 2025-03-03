@@ -152,10 +152,10 @@ class KalmanFilter_circle:
         
         # 过程噪声协方差 (调整不同状态的噪声水平)
         self.kf.processNoiseCov = np.eye(self.state_size, dtype=np.float32)
-        self.kf.processNoiseCov[0, 0] = 0.5  # x 噪声
-        self.kf.processNoiseCov[1, 1] = 0.5  # y 噪声
-        self.kf.processNoiseCov[2, 2] = 5   # vx 噪声
-        self.kf.processNoiseCov[3, 3] = 5   # vy 噪声
+        self.kf.processNoiseCov[0, 0] = 0.1  # x 噪声
+        self.kf.processNoiseCov[1, 1] = 0.1  # y 噪声
+        self.kf.processNoiseCov[2, 2] = 0.5   # vx 噪声
+        self.kf.processNoiseCov[3, 3] = 0.5   # vy 噪声
  
         
         # 测量噪声协方差
