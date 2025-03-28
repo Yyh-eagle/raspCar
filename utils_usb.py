@@ -12,8 +12,8 @@ from collections import Counter
 ###################################宏常量定义########################################
 FX = 498.043256027757 #相机1的水平焦距
 FY = 498.108657044219
-CX =315.215468760492
-CY =238
+CX =320
+CY =240
 USB2_Width = 640
 USB2_Height = 480
 lower_red1 = np.array([0, 52, 83])      # 红色的HSV阈值下限1
@@ -24,6 +24,7 @@ lower_blue = np.array([60,83,38])#蓝色下限
 upper_blue = np.array([114, 255, 255])#蓝色上限
 lower_green = np.array([37,33,39])#绿色下限
 upper_green = np.array([83, 255, 255])#绿色上限
+
 lower_ground_yellow = np.array([19, 13, 113])   # 地面黄色的HSV阈值下限
 upper_ground_yellow = np.array([47, 99, 232])   # 地面黄色的HSV阈值上限
 lower_ground_gray = np.array([0, 0, 46])   # 地面灰色的HSV阈值下限
@@ -287,7 +288,7 @@ def GetCameraPosition(x,y,theta,task_state):
 
 
 def Ratio_Ground(x,y,theta):
-    X = (x-326)/22.4
+    X = (x-CX)/22.4
     Y = (y-CY)/22.4
 
     R = np.array([[np.cos(theta),np.sin(theta)],
@@ -298,7 +299,7 @@ def Ratio_Ground(x,y,theta):
     return X_World
 
 def Ratio_item(x,y,theta):
-    X = (x-326)/32.2
+    X = (x-CX)/32.2
     Y = (y-CY)/32.8
     R = np.array([[np.cos(theta),np.sin(theta)],
                     [np.sin(theta),-np.cos(theta)]])
@@ -308,7 +309,7 @@ def Ratio_item(x,y,theta):
     return X_World
 
 def Ratio_plate(x,y,theta):
-    X = (x-326)/66
+    X = (x-CX)/66
     Y = (y-CY)/70
     R = np.array([[np.cos(theta),np.sin(theta)],
                     [np.sin(theta),-np.cos(theta)]])

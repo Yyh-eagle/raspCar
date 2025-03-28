@@ -68,14 +68,14 @@ def main():
     cv2.createTrackbar('Upper V', 'mask_yellow', upper_v, 255, update_upper_v)
 
     # 打开默认摄像头
-    cap = cv2.VideoCapture(0)
+    cap = cv2.VideoCapture("use_videos/all_contest.avi")
 
     if not cap.isOpened():
         print("无法打开摄像头")
         return
 
     while True:
-        time.sleep(0.03)
+        #time.sleep(0.03)
         # 读取一帧
         ret, frame = cap.read()
         if not ret:

@@ -143,7 +143,7 @@ def detect_gray_yellow_boundary(frame, kalmen, dT):
     # 边缘检测
     edges = cv2.Canny(processed_mask, 193, 255, apertureSize=3)
     # 霍夫变换检测直线
-    lines = cv2.HoughLines(edges, 1, np.pi / 180, threshold=55)
+    lines = cv2.HoughLines(edges, 1, np.pi / 180, threshold=50)
     
     x0_out  = Line_Angle_out(frame)
     select_line = None

@@ -136,8 +136,6 @@ class SubscriberNode():
         else:
             self.line_flag =0
             
-
-
             
 
 #出发识别二维码
@@ -172,12 +170,16 @@ class SubscriberNode():
             self.df_1.ind = 0
             self.df_2.ind = 0
             self.start_time = time.time()#任务的基准计时
+            self.if_color_change = 0#
+            self.flag_complete = 0
+            self.wait_color =0
+            self.IFloop =0.0
  
         #任务控制
         #假设的二维码#bug比赛前删除
-        self.task_list = [3,1,2,3,1,2]
-        task = self.task_list
-        cv2.putText(frame2, "aim_color"+str(task[self.task_id-1]), (400,475), cv2.FONT_HERSHEY_SIMPLEX,.9, (0,0,255), 2)
+  
+
+        cv2.putText(frame2, "aim_color"+str(self.task_list[self.task_id-1]), (400,475), cv2.FONT_HERSHEY_SIMPLEX,.9, (0,0,255), 2)
         #清零所有的抓取动作
         self.Okseize = 0.0
         
@@ -192,7 +194,7 @@ class SubscriberNode():
         #################################具体任务##########################################################
         if(self.task_state==1 or self.task_state==4):#从旋转圆盘中抓取物料
             
-            list_usb1 = GetColor_usb1(frame1,task[self.task_id-1])#识别颜色物块
+            list_usb1 = GetColor_usb1(frame1,self.task_list[self.task_id-1])#识别颜色物块
             if(len(list_usb1)>0):#检测到目标
                 self.index = 0#清空未检测目标计数器，有必要，很有必要
 
@@ -205,13 +207,11 @@ class SubscriberNode():
                     self.start_time= time.time()#只进一次
                 self.this_time = time.time()
 
-                if self.start_time is not None:#bug就怕
+                if self.start_time is not None:
                     time_span = self.this_time-self.start_time
                 else :
                     time_span = 0
                 
-
-
 
                 #识别到颜色改变
                 if(self.flag_complete ==0 and self.if_color_change==1):#识别到颜色并下一个物料转动过来
@@ -225,7 +225,7 @@ class SubscriberNode():
                         self.IFloop =1.0
                     if(self.df_1.define(list_usb1[3],324,80)==1 and self.df_2.define(list_usb1[4],240,80)):
                         self.IFloop = 0
-                        if(list_usb1[0]==task[self.task_id-1]):
+                        if(self.Is_aim_FLAG==self.task_list[self.task_id-1]):
                             self.Okseize = 1.0
                         else:
                             self.Okseize = 0.0
@@ -271,7 +271,7 @@ class SubscriberNode():
     ####################码垛#################################################################
         else:
 
-            list_usb1 = GetColor_usb1(frame1,2)#着重修改这个函数#识别色块
+            list_usb1 = GetColor_usb1_green(frame1,2)#着重修改这个函数#识别色块
             #看见了颜色色块
             if(len(list_usb1)>0):#是否检测到目标
                 self.index = 0
@@ -280,10 +280,10 @@ class SubscriberNode():
                 self.object_X = X
                 self.object_Y = Y
                 
-                if((time.time()-self.start_time)>4):#是否有稳定的目标存在#todo调整参数
+                if((time.time()-self.start_time)>2.5 and list_usb1[0] == 2):#是否有稳定的目标存在
                     self.IFloop =1.0
                     self.Is_aim_FLAG = list_usb1[0]
-                    if self.df_1.define(list_usb1[3],324,40) and self.df_2.define(list_usb1[4],240,40) and list_usb1[0]==2:#如果稳定了
+                    if (time.time()-self.start_time)>6.5 and self.df_1.define(list_usb1[3],324,30) and self.df_2.define(list_usb1[4],240,30) and list_usb1[0]==2:#如果稳定了
                         self.Okseize = 1.0
                         self.IFloop =0.0
                     else:
@@ -418,9 +418,6 @@ class SubscriberNode():
             )
 
 
-
-
-  
     #析构函数
     def __del__(self):
         # 释放摄像头和关闭窗口

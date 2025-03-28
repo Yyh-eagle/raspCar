@@ -2,10 +2,6 @@ import cv2
 import  numpy as np
 from utils_usb import *
 
-K_2dcode = 0.5
-#找到视野中央的物料
-
-
 
 
 def GetColor_usb1(frame,color_num):
@@ -87,8 +83,8 @@ def houf_circle(frame):
     equlized_image = cv2.bilateralFilter(equlized_image, 9, 100, 100)  # d=9, sigmaColor=75, sigmaSpace=75
     
     circles = cv2.HoughCircles(equlized_image, cv2.HOUGH_GRADIENT_ALT, dp=1, 
-                          minDist=17, param1=88, param2=0.75,
-                          minRadius=60, maxRadius=1000)#改进的霍夫梯度
+                          minDist=17, param1=90, param2=0.80,
+                          minRadius=60, maxRadius=800)#改进的霍夫梯度
     
     if circles is not None:
         circles = circles[0,:,:]
@@ -131,5 +127,44 @@ def houf_circle(frame):
     else:
         #print("未检测到圆")
         return None  
-       
+      
 
+def GetColor_usb1_green(frame,color_num):
+    #都返回，但是要返回此时最多的颜色
+
+
+    closest_color = 2
+    mask_green = color_detect(frame,2)
+    #得到掩膜的面积用于排除噪声#todo调整所有的hsv参数
+    area_green = get_area(mask_green)
+    max_color = 2
+    result = np.zeros_like(frame)
+
+
+    result[mask_green > 0] = [255, 255, 255]  # 绿色色为白色
+
+
+    #获取result中的白色面积
+    white_area = cv2.countNonZero(cv2.cvtColor(result, cv2.COLOR_BGR2GRAY))
+
+    if(white_area<15000):
+        return []
+    eros =  ErosAndDia(result)
+    kernel = np.ones((10, 10), dtype=np.uint8)
+    eros = cv2.dilate(eros, kernel, 1) # 1:迭代次数，也就是执行几次膨胀操作
+    #cv2.imshow("eros",eros)    
+    state =cnts_draw(frame,eros)# return [x,y,w,h]
+    #print(state)
+    #获取中心：、
+    if len(state)>0:
+        closest_color = max_color 
+        x,y,w,h = state[0],state[1],state[2],state[3]
+        #print(w*h)
+        if w*h <=15000:
+            return []
+        cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 0, 255), 2)
+        cv2.putText(frame, str(closest_color), (x+20,y+20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+        ans = [closest_color,x+w/2,y+h/2,x+w/2,y+h/2]   
+        return ans
+    else:
+        return []

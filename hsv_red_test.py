@@ -4,12 +4,12 @@ import time
 
 # 定义全局变量
 lower_h1 = 0
-lower_h2 = 160
-lower_s = 103
-lower_v = 100
+lower_h2 = 144
+lower_s = 1052
+lower_v = 83
 upper_h1 = 15
 upper_h2 = 180
-upper_s = 214
+upper_s = 255
 upper_v = 255
 
 def color_detect(frame, lower_red1, upper_red1, lower_red2, upper_red2):
