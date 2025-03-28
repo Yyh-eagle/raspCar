@@ -1,3 +1,0 @@
-colcon build --packages-select yyh_image 
-ros2 run yyh_image Image_gongchuang 
-python3 ~/ros2_ws/src/yyh_image/yyh_image/video_gongchuang.py

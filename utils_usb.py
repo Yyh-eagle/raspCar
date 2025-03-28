@@ -6,19 +6,24 @@ import math
 import collections
 from threading import Thread
 from queue import Queue
+from collections import deque
+from collections import Counter
 
 ###################################宏常量定义########################################
-
+FX = 498.043256027757 #相机1的水平焦距
+FY = 498.108657044219
+CX =315.215468760492
+CY =238
 USB2_Width = 640
 USB2_Height = 480
-lower_red1 = np.array([0, 18, 83])      # 红色的HSV阈值下限1
-upper_red1 = np.array([15, 205, 255])    # 红色的HSV阈值上限1
-lower_red2 = np.array([144, 18, 83])    # 红色的HSV阈值下限2
-upper_red2 = np.array([180, 205, 255])   # 红色的HSV阈值上限2
-lower_blue = np.array([96,75,104])#蓝色下限
-upper_blue = np.array([119, 193, 255])#蓝色上限
-lower_green = np.array([37,10,39])#绿色下限
-upper_green = np.array([83, 219, 255])#绿色上限
+lower_red1 = np.array([0, 52, 83])      # 红色的HSV阈值下限1
+upper_red1 = np.array([15, 255, 255])    # 红色的HSV阈值上限1
+lower_red2 = np.array([144, 52, 83])    # 红色的HSV阈值下限2
+upper_red2 = np.array([180, 255, 255])   # 红色的HSV阈值上限2
+lower_blue = np.array([60,83,38])#蓝色下限
+upper_blue = np.array([114, 255, 255])#蓝色上限
+lower_green = np.array([37,33,39])#绿色下限
+upper_green = np.array([83, 255, 255])#绿色上限
 lower_ground_yellow = np.array([19, 13, 113])   # 地面黄色的HSV阈值下限
 upper_ground_yellow = np.array([47, 99, 232])   # 地面黄色的HSV阈值上限
 lower_ground_gray = np.array([0, 0, 46])   # 地面灰色的HSV阈值下限
@@ -26,7 +31,12 @@ upper_ground_gray = np.array([180, 40, 254])   # 地面灰色的HSV阈值上限
 
 lower_ground_green = np.array([35,13,89])   # 地面lv色的HSV阈值下限
 upper_ground_green = np.array([74, 197, 255])   # 地面lv的HSV阈值上限
-
+lower_ground_red1 = np.array([0, 52, 83])      # 地面红色的HSV阈值下限1
+upper_ground_red1 = np.array([15, 255, 255])    # 地面红色的HSV阈值上限1
+lower_ground_red2 = np.array([144, 52, 83])    # 地面红色的HSV阈值下限2
+upper_ground_red2 = np.array([180, 255, 255])   # 地面红色的HSV阈值上限2
+lower_ground_blue = np.array([60,83,38])   # 地面蓝色的HSV阈值下限
+upper_ground_blue = np.array([114, 255, 255])   # 地面蓝色的HSV阈值上限
 ####################################辅助工具函数#######################################
 #1.计时器函数
 from contextlib import  contextmanager
@@ -38,113 +48,53 @@ def timer(ind):
     end = time.time()
     if ind%50==0:
         print(f"耗时：{end-start:.4f}秒")
-#2.稳定判据：
-def is_data_stable(sensor_data, aim = 0,threshold=0.20, frame_count=10):
-    """
-    当传感器返回数据为静态时，通过连续10（可改）帧的稳定判断来确保数据的稳定性，防止对动态目标的误识别,
-    输入：传感器数据,期望值，变化阈值，连续判断帧数,
-    输出：是否可以将其作为固定目标，（物料和圆环）
+#稳定性判别器
+class data_define():
+    def __init__(self):
+        self.ind  =0
+    def define(self,data,aim,threshold=40):
+        if(abs(data-aim)<=threshold):
+            self.ind+=1
+        else:
+            self.ind=0
+        print(self.ind)
+        if self.ind >=6:
+            return True
+        
+        else:
+            return False
 
-    """
-   
-    # 缓存最近 frame_count 帧的数据
-    if not hasattr(is_data_stable, "data_buffer"):
-        is_data_stable.data_buffer = collections.deque(maxlen=frame_count)#创建一个队列
+#颜色滤波器
+class ColorFilter:
+    def __init__(self, window_size=3):
+        self.window_size = window_size
+        self.window = deque(maxlen=window_size)  # 固定大小的滑动窗口
     
-    # 使用nonlocal来确保在函数内记录和修改max_data的值
-    if not hasattr(is_data_stable, "max_data"):  # 初始化max_data
-        is_data_stable.max_data = None
-
-    # 更新max_data，记录最大传感器数据
-    if is_data_stable.max_data is None:
-        is_data_stable.max_data = sensor_data
-    else:
-        is_data_stable.max_data = max(abs(sensor_data), is_data_stable.max_data)
-
-    # 添加当前传感器数据
-    is_data_stable.data_buffer.append(sensor_data)
+    def update(self, new_color):
+        """添加新颜色，并返回滤波后的颜色（众数）"""
+        self.window.append(new_color)
+        return self.get_mode()
     
-    # 检查数据是否已经积累到足够的帧数
-    if len(is_data_stable.data_buffer) < frame_count:
-        return False  # 数据还不够稳定
-    
+    def get_mode(self):
+        """计算当前窗口的众数（出现次数最多的颜色）"""
+        if not self.window:
+            return None
+        
+        # 统计颜色出现次数
+        color_counts = Counter(self.window)
+        
+        # 返回出现次数最多的颜色
+        mode_color = color_counts.most_common(1)[0][0]
+        return mode_color
 
-    # 计算第 10 帧和第 1 帧之间的偏差
-    first_frame = is_data_stable.data_buffer[0]
-    tenth_frame = is_data_stable.data_buffer[-1]
-    deviation = abs(tenth_frame - first_frame)
-    differences = [abs(is_data_stable.data_buffer[i] - aim) for i in range(frame_count-1)]
-    
-    
-    #data_mean = sum(is_data_stable.data_buffer) / len(is_data_stable.data_buffer)#计算均值
-    # 如果偏差小于阈值，则认为数据稳定
-    if all(diff < threshold*is_data_stable.max_data for diff in differences) and (deviation < threshold*is_data_stable.max_data):#1%误差允许
-        return True
-    
-    return False
+    def reset(self):
+        """清空窗口"""
+        self.window.clear()
 
-def data_stable(sensor_data, aim=0, threshold=40, frame_count=20):
-    """
-    当传感器返回数据为静态时，通过连续20帧的稳定判断来确保数据的稳定性，防止对动态目标的误识别,
-    输入：传感器数据,期望值，变化阈值，连续判断帧数,
-    输出：是否可以将其作为固定目标，（物料和圆环）
 
-    """
-    # 缓存最近 frame_count 帧的数据
-    if not hasattr(data_stable, "data_buffer"):
-        data_stable.data_buffer = collections.deque(maxlen=frame_count)  # 创建一个队列
 
-    # 添加当前传感器数据
-    data_stable.data_buffer.append(sensor_data)
-
-    # 检查数据是否已经积累到足够的帧数
-    if len(data_stable.data_buffer) < frame_count:
-        return False  # 数据还不够稳定
-
-    # 检查所有数据是否都小于阈值
-    if all(abs(data - aim) < threshold for data in data_stable.data_buffer):
-        return True
-
-    return False
    
    
-def if_data_stable(sensor_data, threshold=0.05, frame_count=20):
-
-    # 缓存最近 frame_count 帧的数据
-    if not hasattr(if_data_stable, "data_buffer"):
-        if_data_stable.data_buffer = collections.deque(maxlen=frame_count)#创建一个队列
-    
-    # 使用nonlocal来确保在函数内记录和修改max_data的值
-    if not hasattr(if_data_stable, "max_data"):  # 初始化max_data
-        if_data_stable.max_data = None
-
-    # 更新max_data，记录最大传感器数据
-    if if_data_stable.max_data is None:
-        if_data_stable.max_data = sensor_data
-    else:
-        if_data_stable.max_data = max(abs(sensor_data), if_data_stable.max_data)
-
-    # 添加当前传感器数据
-    if_data_stable.data_buffer.append(sensor_data)
-    
-    # 检查数据是否已经积累到足够的帧数
-    if len(if_data_stable.data_buffer) < frame_count:
-        return False  # 数据还不够稳定
-    
-
-    # 计算第 10 帧和第 1 帧之间的偏差
-    data_min = min(if_data_stable.data_buffer)
-    data_max = max(if_data_stable.data_buffer)
-    deviation = data_max - data_min  # 使用窗口内极差代替首尾差
-
-    
-    
-    #data_mean = sum(is_data_stable.data_buffer) / len(is_data_stable.data_buffer)#计算均值
-    # 如果偏差小于阈值，则认为数据稳定
-    if (deviation < threshold*if_data_stable.max_data):#1%误差允许
-        return True
-    
-    return False
 
 #4.计数器类
 class CallingCounter(object):
@@ -168,6 +118,9 @@ class VideoStream:
     def __init__(self,src = 0):
         self.name = f"镜头{src}"
         self.stream = cv2.VideoCapture(src)
+        # 尝试禁用自动白平衡（AWB）
+        self.stream.set(cv2.CAP_PROP_AUTO_WB, 1)  # 0 = 关闭自动白平衡
+      
         self.q  =Queue(maxsize=10)
         self.thread = Thread(target=self.update,args=())#生产者线程
         self.thread.daemon =True#守护线程，主程序退出时自动结束
@@ -204,14 +157,6 @@ def ColorToNum(color):
         return 0
         
 
-   
-def CaculateFeedback_X(K,cx):#根据矩形框的中心点来计算反馈量
-#K是反馈系数，用于将像素转换为真实的坐标
-    return ((USB2_Width/2)-cx)
-
-def CaculateFeedback_Y(K,cy):#根据矩形框的中心点来计算反馈量
-#K是反馈系数，用于将像素转换为真实的坐标
-    return ((USB2_Height/2)-cy)*K
 
 ###########################################圆形与中心检测##############################################
 def ContourFilter(image):
@@ -320,40 +265,30 @@ def color_detect(frame,color):
     elif(color==6):#地绿色
        # print("地绿色")
         mask = cv2.inRange(hsv_img, lower_ground_green, upper_ground_green)
+    elif(color==7):#地红色
+        mask1 = cv2.inRange(hsv_img, lower_ground_red1, upper_ground_red1)
+        mask2 = cv2.inRange(hsv_img, lower_ground_red2, upper_ground_red2)
+        mask = cv2.bitwise_or(mask1, mask2)
+    elif(color ==8):#地蓝色
+        mask = cv2.inRange(hsv_img, lower_ground_blue, upper_ground_blue)
     return mask
 
 
-FX = 498.043256027757 #相机1的水平焦距
-FY = 498.108657044219
-CX =315.215468760492
-CY =245.322412222862
-#小孔成像原理
-def GetWorldPosition(x,y,h,theta):
-     # 小孔成像逆变换计算X/Y坐标
-    X = (x - CX) * h / FX
-    Y = (y - CY) * h / FY
-    # Z坐标为固定高度h（假设地面平面Z=h）
-    Z = h  
-    R = np.array([[-np.cos(theta),np.sin(theta)],
-                    [np.sin(theta),np.cos(theta)]])
-    X_0 =np.array([X,Y])
-    X_World = np.dot(R,X_0)  
-    #print(X_World)              
-    return X_World
+
+
 
 def GetCameraPosition(x,y,theta,task_state):
-    if(task_state%4==1):
+    if(task_state%3==1):
         return Ratio_plate(x,y,theta)
-    elif(task_state%4==0):
-        return Ratio_Ground(x,y,theta)
     else:
         return Ratio_Ground(x,y,theta)
 
 
 
+
 def Ratio_Ground(x,y,theta):
     X = (x-326)/22.4
-    Y = (y-248)/22.4
+    Y = (y-CY)/22.4
 
     R = np.array([[np.cos(theta),np.sin(theta)],
                     [np.sin(theta),-np.cos(theta)]])
@@ -364,7 +299,7 @@ def Ratio_Ground(x,y,theta):
 
 def Ratio_item(x,y,theta):
     X = (x-326)/32.2
-    Y = (y-248)/32.8
+    Y = (y-CY)/32.8
     R = np.array([[np.cos(theta),np.sin(theta)],
                     [np.sin(theta),-np.cos(theta)]])
     X_0 =np.array([X,Y])
@@ -374,7 +309,7 @@ def Ratio_item(x,y,theta):
 
 def Ratio_plate(x,y,theta):
     X = (x-326)/66
-    Y = (y-248)/70
+    Y = (y-CY)/70
     R = np.array([[np.cos(theta),np.sin(theta)],
                     [np.sin(theta),-np.cos(theta)]])
     X_0 =np.array([X,Y])

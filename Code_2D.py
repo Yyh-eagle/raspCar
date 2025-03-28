@@ -21,7 +21,7 @@ def Code2D(frame,barcodes):
     
     
     if(len(text)>0):
-        results=[text[0]]
+        results=[text[0],x+w/2,str(barcodeData)]
     else:
         results=[]
         
@@ -38,3 +38,34 @@ def text_to_array(text):
     return array
 
 
+def array_to_int(array):
+    tenth = 0
+    one = 0
+    a1,a2,a3,a4,a5,a6 = array[0],array[1],array[2],array[3],array[4],array[5]
+    
+    if (a1,a2,a3) == (1,2,3):
+        tenth = 1
+    elif (a1,a2,a3) == (1,3,2):
+        tenth = 2
+    elif(a1,a2,a3) == (2,1,3):
+        tenth = 3
+    elif(a1,a2,a3) == (2,3,1):
+        tenth = 4
+    elif(a1,a2,a3) == (3,1,2):
+        tenth = 5
+    elif(a1,a2,a3) == (3,2,1):
+        tenth = 6
+
+    if(a4,a5,a6) == (1,2,3):
+        one = 1
+    elif (a4,a5,a6) == (1,3,2):
+        one = 2
+    elif(a4,a5,a6) == (2,1,3):
+        one = 3
+    elif (a4,a5,a6) == (2,3,1):
+        one = 4
+    elif(a4,a5,a6) == (3,1,2):
+        one = 5
+    elif(a4,a5,a6) == (3,2,1):
+        one = 6
+    return int(tenth*10+one)

@@ -5,13 +5,14 @@ from line import *
 # 初始HSV阈
 # 定义全局变量
 
-lower_h = 84
-lower_s = 70
-lower_v = 124
-upper_h = 126
-upper_s = 201
+lower_h = 60
+lower_s = 83
+lower_v = 38
+upper_h = 114
+upper_s = 255
 upper_v = 255
-
+lower_blue = np.array([60,83,38])#蓝色下限
+upper_blue = np.array([114, 255, 255])#蓝色上限
 ###################################blue
 
 def color_detect(frame,lower,upper):
@@ -67,7 +68,7 @@ def main():
     cv2.createTrackbar('Upper V', 'mask_yellow', upper_v, 255, update_upper_v)
 
     # 打开默认摄像头
-    cap = cv2.VideoCapture(2)
+    cap = cv2.VideoCapture(0)
 
     if not cap.isOpened():
         print("无法打开摄像头")

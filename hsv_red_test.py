@@ -83,7 +83,7 @@ def main():
     cv2.createTrackbar('Upper V', 'mask_yellow', upper_v, 255, update_upper_v)
 
     # 打开默认摄像头
-    cap = cv2.VideoCapture(2)
+    cap = cv2.VideoCapture(0)
 
     if not cap.isOpened():
         print("无法打开摄像头")

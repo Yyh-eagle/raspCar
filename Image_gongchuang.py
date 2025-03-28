@@ -1,7 +1,7 @@
 #系统级别函数
 import os
 import datetime
-
+import time
 
 #引入其他文件中的函数
 from utils_usb import *
@@ -25,37 +25,54 @@ class SubscriberNode():
     #构造函数，初始化所有变量
     def __init__(self):
     
-        self.iFvideo =0
+        self.iFvideo =1
         self.Init_video()
         self.serial = SerialPort()
         self.Init_chuankou()
         #镜头初始化
-        #self.usb1 = VideoStream("use_videos/usb.avi")
-        self.usb1 = VideoStream('/dev/camera_arm')
-        self.usb2 = VideoStream('/dev/camera_front')
+       # self.usb1 = VideoStream("use_videos/mature.avi")
+        self.usb2 = VideoStream('/dev/camera_arm')
+        self.usb1 = VideoStream('/dev/camera_front')
 
         self.ticks = 0#计时变量，用于卡尔曼滤波
         self.kalmen_line = KalmanFilter_Line()  # 直线的卡尔曼滤波器#todo直线卡尔曼滤波调参数
         self.ab_line = ab_filter()
         self.ab_x = ab_filter()
         self.ab_y = ab_filter()
+        self.df_1 = data_define()
+        self.df_2 = data_define()
+        self.color_filter =ColorFilter(window_size=5)
         #任务规划部分
         #状态机初始
+        self.mystate  =0
         self.task_state=0
+        self.last_task_state = 0
         self.task_list = None
         self.last_task_id = 1
         self.task_id = 1
         
+
+        self.wait_color = 0
+        self.if_color_change = 0
         self.index = 0#目标丢失计数#todo考虑那些状态变量不需要零阶保持
+        self.flag_complete = 0
+        self.start_time=None#计时，用于圆盘区域的第二个目标
+        
         #主循环
         self.ProcessImage()
       
     #核心处理函数
     def ProcessImage(self):
-       
+ 
+       #angle = 90+set-(180-aim)
+       #      = set-90+aim  
         while True:
-    
+            
             self.serial.receive()#串口接收数据
+
+            #计算角度
+            
+            self.task_state = int(self.serial.IfArrive)#todo是否中途=0#todo怎么进入回家程序
             #卡尔曼曼滤波计数
             precTick = self.ticks
             self.ticks = float(cv2.getTickCount())
@@ -78,11 +95,12 @@ class SubscriberNode():
             if(self.task_state==0):
                 self.GoOut(frame1,frame2)
             elif(self.task_state<9):   
+                
                 self.Mainloop(frame1,frame2)#从圆环中拿物料
             else:
                 self.Return(frame1)      
             #每次循环结束后更新串口      
-      
+           # print(self.df_1.ind)
             self.Update_chuankou()   
 
 
@@ -90,8 +108,11 @@ class SubscriberNode():
             self.putText(frame1,frame2)
             Frame = np.hstack((frame1,frame2))
             cv2.imshow("Frame", Frame)
-            cv2.moveWindow("Frame", 0, 20)  # 将窗口移动到屏幕左上角
-
+            cv2.moveWindow("Frame", 20, 80)  # 将窗口移动到屏幕左上角
+            if(self.task_list is not None):
+                display_task_window(self.text)
+            else:
+                display_task_window("NO task")
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
         exit(0) #程序退出#todo验证程序可否退出    
@@ -126,12 +147,15 @@ class SubscriberNode():
         if(len(results_2d)>0):
             
             #任务获取函数
-            if(self.task_list is None and results_2d[0] is not None):
+            if(results_2d[0] is not None):
+                self.text = results_2d[2]
                 self.task_list=text_to_array(results_2d[0])
-                #display_numbers(self.task_list)
-                self.QRcode =1
+                self.QRcode = array_to_int(self.task_list)
+
+            cv2.putText(frame2, str(results_2d[1]), (320,240), cv2.FONT_HERSHEY_SIMPLEX,.9, (255,255,255), 2)
+            self.object_X = (results_2d[1]-324)/22
                 #self.stop_2d()#确定最后第二个摄像头是否要打开
-                self.task_state=1;
+ 
        
         key = cv2.waitKey(1) & 0xFF
         if key == ord(' '):  # 空格键触发抓取
@@ -141,92 +165,140 @@ class SubscriberNode():
         
 #状态机1-8
     def Mainloop(self,frame1,frame2):
-        
+
+        #状态机切换，目标保持器计数清零
+        if(self.last_task_state!=self.task_state):
+
+            self.df_1.ind = 0
+            self.df_2.ind = 0
+            self.start_time = time.time()#任务的基准计时
+ 
         #任务控制
-      
+        #假设的二维码#bug比赛前删除
+        self.task_list = [3,1,2,3,1,2]
         task = self.task_list
-        cv2.putText(frame2, "aim_color"+str(task[self.task_id-1]), (400,75), cv2.FONT_HERSHEY_SIMPLEX,.9, (0,0,255), 2)
-        
+        cv2.putText(frame2, "aim_color"+str(task[self.task_id-1]), (400,475), cv2.FONT_HERSHEY_SIMPLEX,.9, (0,0,255), 2)
+        #清零所有的抓取动作
         self.Okseize = 0.0
-        self.IFloop = 0.0
-        ################################执行圆形检测##########################################
-  
-        #################################抓取圆盘任务
-        if(self.task_state%4==1):#从旋转圆盘中抓取物料
-            list_usb1 = GetColor_usb1(frame1,task[self.task_id-1])#找目标机械臂,为什么传入
-         
-            if(self.serial.IfArrive>0):
+        
+        ################################执行巡黑线检测，矫正自身yaw角##########################################
+        angle = Line_Angle(frame1)
+        if angle is not None:#如果寻到线了
+            self.line_flag = 1
+            self.Car_Yaw  = angle #零阶保持
+        else:
+            self.line_flag = 0
+    
+        #################################具体任务##########################################################
+        if(self.task_state==1 or self.task_state==4):#从旋转圆盘中抓取物料
             
+            list_usb1 = GetColor_usb1(frame1,task[self.task_id-1])#识别颜色物块
+            if(len(list_usb1)>0):#检测到目标
+                self.index = 0#清空未检测目标计数器，有必要，很有必要
+
+                self.object_X,self.object_Y =GetCameraPosition(list_usb1[3],list_usb1[4],70/57.3,self.task_state)#得到世界坐标
+                self.Is_aim_FLAG = self.color_filter.update(list_usb1[0])#滑动窗口滤波
+
+                if(self.Is_aim_FLAG!=self.wait_color and self.wait_color !=0):#产生了变化
+                    self.if_color_change = 1#
+                    #只有这个任务需要不
+                    self.start_time= time.time()#只进一次
+                self.this_time = time.time()
+
+                if self.start_time is not None:#bug就怕
+                    time_span = self.this_time-self.start_time
+                else :
+                    time_span = 0
                 
-                #一开始看不见，只要出现就是转过来的
-                if(len(list_usb1)>0):#是否检测到目标
-                    self.index = 0
 
-                    X,Y =GetCameraPosition(list_usb1[3],list_usb1[4],1.204,self.task_state)
-                    self.object_X = X
-                    self.object_Y = Y
-                    self.object_Z = 0
-                    
-                    
-                    if(if_data_stable(list_usb1[3])):#是否有稳定的目标存在
-                        self.Is_aim_FLAG = list_usb1[0]
+
+
+                #识别到颜色改变
+                if(self.flag_complete ==0 and self.if_color_change==1):#识别到颜色并下一个物料转动过来
+                    self.IFloop =0.0
+                    self.flag_complete = 1#标志颜色改变的位
+               
+                #新无聊转动进来
+                if(self.flag_complete ==1):
+    
+                    if(time_span>1.0):
                         self.IFloop =1.0
-                        
-                        if(data_stable(list_usb1[3],324) and list_usb1[0]==task[self.task_id-1]):#如果稳定了
+                    if(self.df_1.define(list_usb1[3],324,80)==1 and self.df_2.define(list_usb1[4],240,80)):
+                        self.IFloop = 0
+                        if(list_usb1[0]==task[self.task_id-1]):
                             self.Okseize = 1.0
-                            self.IFloop =0.0
                         else:
                             self.Okseize = 0.0
                     else:
-                        self.IFloop =0.0
+                        self.Okseize = 0.0
                 else:
-                    self.index+=1
-                    self.Is_aim_FLAG = self.task_list[self.task_id-1]#零阶保持     
+                        self.Okseize = 0.0
+                        
             else:
-                pass
-            
-        elif(self.task_state%4==3):#抓起来物料
-            list_usb1 = GetColor_usb1(frame1,2)#找只找绿色，
-            #此时可以什么都不做，根据之前放进去的位置开环抓取物料
-        else:#最难的任务，将物料放在物料或者圆环上面
+                self.index+=1
+                
+            if(self.Is_aim_FLAG !=0):
+                self.wait_color = self.Is_aim_FLAG 
+
+#############################################放置圆环############################################################
+        elif(self.task_state==2 or self.task_state==3 or self.task_state==5):#对准圆环，粗加工，暂存区，第二次粗加工
+       
             list_usb1 = GetCenterColor_usb1(frame1)#着重修改这个函数
-            #if(self.serial.IfArrive>0):#到了之后
-            self.Okseize = 0.0
-            if self.serial.IfArrive>0:
-          
-                #一开始看不见，只要出现就是转过来的
-                if(len(list_usb1)>0):#是否检测到目标
-                    self.index = 0
-                    X,Y =GetCameraPosition(list_usb1[3],list_usb1[4],1.204,self.task_state)#假设都是直的
-                    
-                    self.object_X = X
-                    self.object_Y = Y
-                    self.object_Z = 0
-                    
-                    if(if_data_stable(list_usb1[3])):#是否有稳定的目标存在#todo调整参数
-                        self.Is_aim_FLAG = list_usb1[0]
-                        self.IFloop =1.0
-                        
-             
-                        if(is_data_stable(list_usb1[3],324) and list_usb1[0]==task[self.task_id-1]):#如果稳定了
-                            self.Okseize = 1.0
-                            self.IFloop =0.0
-                        else:
-                            self.Okseize = 0.0
+            
+            if(len(list_usb1)>0):#是否检测到目标
+                
+                X,Y =GetCameraPosition(list_usb1[3],list_usb1[4],70/57.3,self.task_state)#todo看看是否一定会检测到直线
+                
+                self.object_X = X
+                self.object_Y = Y
+                #print("object_X",self.object_X)
+                span_time = time.time()-self.start_time
+                cv2.putText(frame1, str(span_time), (320,240), cv2.FONT_HERSHEY_SIMPLEX,.9, (0,255,0), 2)
+                if((time.time()-self.start_time)>=8):#是否有稳定的目标存在#todo调整参数
+                    self.IFloop =1.0#闭环
+                    self.Is_aim_FLAG = list_usb1[0]
+                    if(self.df_1.define(list_usb1[3],324,30)==1)and (self.df_2.define(list_usb1[4],240,30)==1) and (list_usb1[0]==2):#如果稳定了
+                        self.Okseize = 1.0
+                        self.IFloop =0.0#抓的时候让闭环=0
                     else:
-                        self.IFloop =1.0
+                        self.Okseize = 0.0
                 else:
-                    self.index+=1
-                    self.Is_aim_FLAG = self.task_list[self.task_id-1]#零阶保持     
+      
+                    self.Okseize = 0.0
             else:
-                pass
+                self.index+=1
 
-        #目标丢失后的处理
-        if(self.index >=10):
-            self.Is_aim_FLAG =0
-       
+    ####################码垛#################################################################
+        else:
 
-       
+            list_usb1 = GetColor_usb1(frame1,2)#着重修改这个函数#识别色块
+            #看见了颜色色块
+            if(len(list_usb1)>0):#是否检测到目标
+                self.index = 0
+                X,Y =GetCameraPosition(list_usb1[3],list_usb1[4],70/57.3,self.task_state)#假设都是直的
+                
+                self.object_X = X
+                self.object_Y = Y
+                
+                if((time.time()-self.start_time)>4):#是否有稳定的目标存在#todo调整参数
+                    self.IFloop =1.0
+                    self.Is_aim_FLAG = list_usb1[0]
+                    if self.df_1.define(list_usb1[3],324,40) and self.df_2.define(list_usb1[4],240,40) and list_usb1[0]==2:#如果稳定了
+                        self.Okseize = 1.0
+                        self.IFloop =0.0
+                    else:
+                        self.Okseize = 0.0
+                else:
+                    self.IFloop =1.0
+            else:
+                self.index+=1
+                self.Is_aim_FLAG = self.task_list[self.task_id-1]#零阶保持     
+
+
+        
+        
+        #print(self.task_state)
+        ###########################任务控制############################################
         if(int(self.serial.Ifseize)==0):
             self.task_id = 1
         elif(int(self.serial.Ifseize)==1):
@@ -239,18 +311,28 @@ class SubscriberNode():
             self.task_id = 5
         elif(int(self.serial.Ifseize)==5):
             self.task_id = 6
-        
-        if self.task_id == 4 and self.last_task_id ==3:
-            self.task_state+=1
 
-
+        #记录上一个状态，以便于控制什么时候是状态机切换
+        self.last_task_state = self.task_state
   
+        #目标丢失后的处理
+        if(self.index >=10):
+            self.Is_aim_FLAG =0
+
+        #记录上一个颜色的变量只记录颜色，而不会记录丢失颜色的0
+        if(self.Is_aim_FLAG!= 0):
+            self.wait_color = self.Is_aim_FLAG
         
+
+
       
     def Return(self,frame1):
         """
         功能：对准大地边缘，进行回位矫正
         """
+        #回位矫正
+        #看线条
+        #todo 测试
         pass
 
    
@@ -266,7 +348,7 @@ class SubscriberNode():
         self.color = 0
         self.H = 0#摄像头的垂直距离
         self.IFloop = 0#
-        self.Car_Yaw = 0.0
+        self.Car_Yaw = 1.57
         self.object_X =0.0
         self.object_Y =0.0
         self.object_Z =0.0
@@ -291,14 +373,17 @@ class SubscriberNode():
 
     #打印信息
     def putText(self,frame1,frame2):
-        cv2.putText(frame2, "this_state: "+str(self.task_state), (400,25), cv2.FONT_HERSHEY_SIMPLEX,.9, (0, 0, 255), 2)
+        cv2.putText(frame2, "this_state: "+str(self.task_state), (400,400), cv2.FONT_HERSHEY_SIMPLEX,.9, (0, 0, 255), 2)
         cv2.putText(frame1, "Is_aim_FLAG:"+str(self.Is_aim_FLAG), (0,25), cv2.FONT_HERSHEY_SIMPLEX,.9, (0, 255, 0), 2)
         cv2.putText(frame1, "IFloop:"+str(self.IFloop), (0,75), cv2.FONT_HERSHEY_SIMPLEX,.9, (0, 255, 0), 2)
         cv2.putText(frame1, "OKseize:"+str(self.Okseize), (0,125), cv2.FONT_HERSHEY_SIMPLEX,.9, (0, 255, 0), 2)
         cv2.putText(frame2, "Ifseize:"+str(self.serial.Ifseize), (0,25), cv2.FONT_HERSHEY_SIMPLEX,.9, (0, 255, 0), 2)
         cv2.putText(frame2, "Ifarrive:"+str(self.serial.IfArrive), (0,75), cv2.FONT_HERSHEY_SIMPLEX,.9, (0, 255, 0), 2)
         cv2.putText(frame1, "object("+str(int(self.object_X*100)/100)+","+str(int(self.object_Y*100)/100)+")", (350,25), cv2.FONT_HERSHEY_SIMPLEX,.9, (0, 0, 255), 2)
-
+        cv2.putText(frame2, "angle:"+str(self.Car_Yaw*57.3), (0,125), cv2.FONT_HERSHEY_SIMPLEX,.9, (0, 255, 0), 2)
+        cv2.putText(frame1, "IFCOLORCHANGE:"+str(self.if_color_change), (350,75), cv2.FONT_HERSHEY_SIMPLEX,.9, (0, 255, 0), 2)      
+        cv2.putText(frame2, "QRcode:"+str(self.QRcode), (0,175), cv2.FONT_HERSHEY_SIMPLEX,.9, (0, 255, 0), 2)
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         
     ##############################################视频录制#############################################
 
     def Init_video(self):
@@ -333,11 +418,7 @@ class SubscriberNode():
             )
 
 
-    def stop_2d(self):
 
-        self.usb2.Release()
-        self.frame2 = None
-        cv2.destroyAllWindows()
 
   
     #析构函数

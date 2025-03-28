@@ -63,7 +63,7 @@ def Line_Angle(frame):
     edges = cv2.Canny(gray, 150, 180, apertureSize=3)
 
     # 参数说明：1为距离精度，np.pi/180为角度精度，150为阈值
-    lines = cv2.HoughLines(edges, 1, np.pi/180, 180)
+    lines = cv2.HoughLines(edges, 1, np.pi/180, 150)
     thetas = []
     if lines is not None:
         for line in lines:
@@ -79,7 +79,7 @@ def Line_Angle(frame):
                 y1 = int(y0 + 1000 * (a))
                 x2 = int(x0 - 1000 * (-b))
                 y2 = int(y0 - 1000 * (a))
-                cv2.line(frame, (x1, y1), (x2, y2), (0, 0, 0), 2)#绿色为检测到的黑线或者其他线
+                #cv2.line(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)#绿色为检测到的黑线或者其他线
                 
                 if(theta<=np.pi/3 ):
                     thetas.append(theta+np.pi/2)

@@ -4,21 +4,6 @@ from utils_usb import *
 
 K_2dcode = 0.5
 #找到视野中央的物料
-def GetCenterColor_usb1(frame):#只找绿色圆环
-    #都返回，但是要返回此时最多的颜色
-
-        
-        
-
-        states= houf_circle(frame)#返回的是偏差值
-        if states is not None: #找到圆        
-            cv2.circle(frame, (int(states[0]), int(states[1])),int(states[2]) , (0, 255, 0), 2)#在图中画出来
-            cv2.circle(frame, (int(states[0]), int(states[1])), 2, (0, 0, 0), -1)
-
-            return [2,states[0],states[1],states[0],states[1]]
-
-        else:
-            return []
 
 
 
@@ -52,12 +37,12 @@ def GetColor_usb1(frame,color_num):
     #获取result中的白色面积
     white_area = cv2.countNonZero(cv2.cvtColor(result, cv2.COLOR_BGR2GRAY))
     #print(f"{white_area=}")
-    if(white_area<15000):
+    if(white_area<20000):
         return []
     eros =  ErosAndDia(result)
     kernel = np.ones((10, 10), dtype=np.uint8)
     eros = cv2.dilate(eros, kernel, 1) # 1:迭代次数，也就是执行几次膨胀操作
-    cv2.imshow("eros",eros)    
+    #cv2.imshow("eros",eros)    
     state =cnts_draw(frame,eros)# return [x,y,w,h]
     #print(state)
     #获取中心：、
@@ -65,7 +50,7 @@ def GetColor_usb1(frame,color_num):
         closest_color = max_color 
         x,y,w,h = state[0],state[1],state[2],state[3]
         #print(w*h)
-        if w*h <=15000:
+        if w*h <=20000:
             return []
         cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 0, 255), 2)
         #cv2.circle(frame, (int(x+w/2), int(y+h/2)), int(w/2), (0, 0, 255), 2)
@@ -74,6 +59,21 @@ def GetColor_usb1(frame,color_num):
         return ans
     else:
         return []
+
+def GetCenterColor_usb1(frame):#只找绿色圆环
+    #都返回，但是要返回此时最多的颜色
+
+        states= houf_circle(frame)#返回的是偏差值
+        print(states)
+        if states is not None: #找到圆        
+            cv2.circle(frame, (int(states[0]), int(states[1])),int(states[2]) , (0, 255, 0), 2)#在图中画出来
+            cv2.circle(frame, (int(states[0]), int(states[1])), 2, (0, 0, 0), -1)
+
+            return [2,states[0],states[1],states[0],states[1]]
+
+        else:
+            return []
+
 def houf_circle(frame):
     """
     霍夫圆检测
@@ -101,7 +101,7 @@ def houf_circle(frame):
             down =int (c[1]+c[2])
             ROI = GetROI2(frame,left+20,right-20,up+20,down-20)
             mask_green = color_detect(ROI,6)
-            cv2.imshow("ros",mask_green)
+           # cv2.imshow("ros",mask_green)
             area_green = get_area(mask_green)
             #print(area_green)
             if(area_green>6000):
@@ -132,3 +132,4 @@ def houf_circle(frame):
         #print("未检测到圆")
         return None  
        
+

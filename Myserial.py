@@ -15,7 +15,7 @@ class SerialPort():
 
         self.serial_port = serial.Serial(
             port='/dev/ttyUSB0',#串口号#bug 固定串口
-            baudrate=115200,#波特率
+            baudrate=460800,#波特率
             bytesize=serial.EIGHTBITS,#八位字节
             parity=serial.PARITY_NONE,
             stopbits=serial.STOPBITS_ONE,
