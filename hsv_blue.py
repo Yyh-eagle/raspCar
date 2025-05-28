@@ -5,10 +5,10 @@ from line import *
 # 初始HSV阈
 # 定义全局变量
 
-lower_h = 60
+lower_h = 77
 lower_s = 83
 lower_v = 38
-upper_h = 114
+upper_h = 131
 upper_s = 255
 upper_v = 255
 lower_blue = np.array([60,83,38])#蓝色下限
@@ -68,7 +68,7 @@ def main():
     cv2.createTrackbar('Upper V', 'mask_yellow', upper_v, 255, update_upper_v)
 
     # 打开默认摄像头
-    cap = cv2.VideoCapture("use_videos/all_contest.avi")
+    cap = cv2.VideoCapture(0)
 
     if not cap.isOpened():
         print("无法打开摄像头")

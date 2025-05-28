@@ -5,8 +5,8 @@ import time
 # 定义全局变量
 lower_h1 = 0
 lower_h2 = 144
-lower_s = 1052
-lower_v = 83
+lower_s = 95
+lower_v = 57
 upper_h1 = 15
 upper_h2 = 180
 upper_s = 255

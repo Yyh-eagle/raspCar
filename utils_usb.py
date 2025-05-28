@@ -16,28 +16,28 @@ CX =320
 CY =240
 USB2_Width = 640
 USB2_Height = 480
-lower_red1 = np.array([0, 52, 83])      # 红色的HSV阈值下限1
+lower_red1 = np.array([0, 95, 57])      # 红色的HSV阈值下限1
 upper_red1 = np.array([15, 255, 255])    # 红色的HSV阈值上限1
-lower_red2 = np.array([144, 52, 83])    # 红色的HSV阈值下限2
+lower_red2 = np.array([144, 95, 57])    # 红色的HSV阈值下限2
 upper_red2 = np.array([180, 255, 255])   # 红色的HSV阈值上限2
 lower_blue = np.array([60,83,38])#蓝色下限
 upper_blue = np.array([114, 255, 255])#蓝色上限
 lower_green = np.array([37,33,39])#绿色下限
 upper_green = np.array([83, 255, 255])#绿色上限
 
-lower_ground_yellow = np.array([19, 13, 113])   # 地面黄色的HSV阈值下限
-upper_ground_yellow = np.array([47, 99, 232])   # 地面黄色的HSV阈值上限
+lower_ground_yellow = np.array([19, 10, 103])   # 地面黄色的HSV阈值下限
+upper_ground_yellow = np.array([80, 99, 220])   # 地面黄色的HSV阈值上限
 lower_ground_gray = np.array([0, 0, 46])   # 地面灰色的HSV阈值下限
 upper_ground_gray = np.array([180, 40, 254])   # 地面灰色的HSV阈值上限
 
-lower_ground_green = np.array([35,13,89])   # 地面lv色的HSV阈值下限
-upper_ground_green = np.array([74, 197, 255])   # 地面lv的HSV阈值上限
-lower_ground_red1 = np.array([0, 52, 83])      # 地面红色的HSV阈值下限1
+lower_ground_green = np.array([35,24,89])   # 地面lv色的HSV阈值下限
+upper_ground_green = np.array([71, 255, 255])   # 地面lv的HSV阈值上限
+lower_ground_red1 = np.array([0, 21, 87])      # 地面红色的HSV阈值下限1
 upper_ground_red1 = np.array([15, 255, 255])    # 地面红色的HSV阈值上限1
-lower_ground_red2 = np.array([144, 52, 83])    # 地面红色的HSV阈值下限2
+lower_ground_red2 = np.array([163, 21, 87])    # 地面红色的HSV阈值下限2
 upper_ground_red2 = np.array([180, 255, 255])   # 地面红色的HSV阈值上限2
-lower_ground_blue = np.array([60,83,38])   # 地面蓝色的HSV阈值下限
-upper_ground_blue = np.array([114, 255, 255])   # 地面蓝色的HSV阈值上限
+lower_ground_blue = np.array([54,15,80])   # 地面蓝色的HSV阈值下限
+upper_ground_blue = np.array([126, 255, 255])   # 地面蓝色的HSV阈值上限
 ####################################辅助工具函数#######################################
 #1.计时器函数
 from contextlib import  contextmanager
@@ -263,10 +263,10 @@ def color_detect(frame,color):
         mask = cv2.inRange(hsv_img, lower_blue, upper_blue)
     elif(color==2):#绿色
         mask = cv2.inRange(hsv_img, lower_green, upper_green)
-    elif(color==6):#地绿色
+    elif(color==7):#地绿色
        # print("地绿色")
         mask = cv2.inRange(hsv_img, lower_ground_green, upper_ground_green)
-    elif(color==7):#地红色
+    elif(color==6):#地红色
         mask1 = cv2.inRange(hsv_img, lower_ground_red1, upper_ground_red1)
         mask2 = cv2.inRange(hsv_img, lower_ground_red2, upper_ground_red2)
         mask = cv2.bitwise_or(mask1, mask2)

@@ -14,7 +14,7 @@ class SerialPort():
     def __init__(self):
 
         self.serial_port = serial.Serial(
-            port='/dev/ttyUSB1',#串口号#bug 固定串口
+            port='/dev/ttyUSB0',#串口号#bug 固定串口
             baudrate=460800,#波特率
             bytesize=serial.EIGHTBITS,#八位字节
             parity=serial.PARITY_NONE,
@@ -30,7 +30,7 @@ class SerialPort():
         self.D_yaw1 = None#右侧舵机的数据
         self.D_yaw2 = None#左侧舵机的数据
         self.IfArrive = 0.0
-        self.Task_data4 = None
+        self.color_loop = None
         self.Task_data5 = None
         self.data = []
         self.receive()
@@ -89,9 +89,9 @@ class SerialPort():
         self.D_yaw1 = struct.unpack('<f', data[20:24])[0]/57.3
         self.D_yaw2 = struct.unpack('<f', data[24:28])[0]/57.3
         self.IfArrive = struct.unpack('<f', data[28:32])[0]
-        self.Task_data4 = struct.unpack('<f', data[32:36])[0]
+        self.color_loop = struct.unpack('<f', data[32:36])[0]
         self.Task_data5 = struct.unpack('<f', data[36:40])[0]
-        self.receive_data = [self.Camera_X,self.Camera_Y,self.Camera_Yaw,self.Task_num,self.Ifseize,self.D_yaw1,self.D_yaw2,self.IfArrive,self.Task_data4,self.Task_data5]
+        self.receive_data = [self.Camera_X,self.Camera_Y,self.Camera_Yaw,self.Task_num,self.Ifseize,self.D_yaw1,self.D_yaw2,self.IfArrive,self.color_loop,self.Task_data5]
         
 
     

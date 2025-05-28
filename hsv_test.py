@@ -7,9 +7,9 @@ from line import *
 hough_threshold = 70  # 初始霍夫直线检测阈值
 min_line_length = 25  # 初始最小直线长度
 lower_h = 19
-lower_s = 13
-lower_v = 133
-upper_h = 47
+lower_s = 10
+lower_v = 103
+upper_h = 80
 upper_s = 99
 upper_v = 220
 
@@ -100,7 +100,7 @@ def main():
         return
 
     while True:
-        
+        time.sleep(0.05)
         # 读取一帧
         ret, frame = cap.read()
         if not ret:

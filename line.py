@@ -26,7 +26,7 @@ def apply_morphological_operations(mask, kernel_size=9):
     
     return closing
 
-def UpFull(image,a = 1.80):
+def UpFull(image,a = 1.95):
     """
     功能：提高饱和度
     输入：图像矩阵，饱和度增强比例a
@@ -143,7 +143,7 @@ def detect_gray_yellow_boundary(frame, kalmen, dT):
     # 边缘检测
     edges = cv2.Canny(processed_mask, 193, 255, apertureSize=3)
     # 霍夫变换检测直线
-    lines = cv2.HoughLines(edges, 1, np.pi / 180, threshold=50)
+    lines = cv2.HoughLines(edges, 1, np.pi / 180, threshold=60)
     
     x0_out  = Line_Angle_out(frame)
     select_line = None
@@ -161,8 +161,8 @@ def detect_gray_yellow_boundary(frame, kalmen, dT):
                 if abs(x0-x0_out)<120:
                     #print("排除黑线")
                     continue
-                if x0<280:
-                    continue
+                #if x0<240:
+                #    continue
  
                 if x0 < min_x0:
                     min_x0 = x0

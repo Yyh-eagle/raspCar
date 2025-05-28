@@ -50,9 +50,8 @@ class SubscriberNode():
         self.task_list = None
         self.last_task_id = 1
         self.task_id = 1
-        
 
-        self.wait_color = 0
+        self.last_color = 0
         self.if_color_change = 0
         self.index = 0#目标丢失计数#todo考虑那些状态变量不需要零阶保持
         self.flag_complete = 0
@@ -94,16 +93,15 @@ class SubscriberNode():
             #总任务处理逻辑
             if(self.task_state==0):
                 self.GoOut(frame1,frame2)
+
             elif(self.task_state<9):   
-                
                 self.Mainloop(frame1,frame2)#从圆环中拿物料
+
             else:
                 self.Return(frame1)      
-            #每次循环结束后更新串口      
-           # print(self.df_1.ind)
+
+
             self.Update_chuankou()   
-
-
             #展示逻辑
             self.putText(frame1,frame2)
             Frame = np.hstack((frame1,frame2))
@@ -124,6 +122,7 @@ class SubscriberNode():
         #巡线
         if Line is not None:
             if Line[2] is not None:
+                #print(Line[2])
                 Line[3]=self.ab_line.ab_filte(Line[3])
                 self.H = Line[3]
                 self.line_flag = 1
@@ -163,48 +162,52 @@ class SubscriberNode():
         
 #状态机1-8
     def Mainloop(self,frame1,frame2):
-
         #状态机切换，目标保持器计数清零
         if(self.last_task_state!=self.task_state):
-
+            #稳定判据清零
             self.df_1.ind = 0
             self.df_2.ind = 0
+            #任务计时的基准重置
             self.start_time = time.time()#任务的基准计时
-            self.if_color_change = 0#
+            self.Is_aim_FLAG = 0
+            self.if_color_change = 0
             self.flag_complete = 0
-            self.wait_color =0
-            self.IFloop =0.0
- 
-        #任务控制
-        #假设的二维码#bug比赛前删除
-  
+            #上一个颜色
+            self.last_color =0
+            self.IFloop =0.0#是否
+            self.loop_flag = 0
 
+ 
+ 
         cv2.putText(frame2, "aim_color"+str(self.task_list[self.task_id-1]), (400,475), cv2.FONT_HERSHEY_SIMPLEX,.9, (0,0,255), 2)
         #清零所有的抓取动作
-        self.Okseize = 0.0
-        
-        ################################执行巡黑线检测，矫正自身yaw角##########################################
-        angle = Line_Angle(frame1)
-        if angle is not None:#如果寻到线了
-            self.line_flag = 1
-            self.Car_Yaw  = angle #零阶保持
-        else:
-            self.line_flag = 0
+        self.Okseize = 0
+        self.take_flag = 0.0
+
+        # ################################执行巡黑线检测，矫正自身yaw角##########################################
+        # angle = Line_Angle(frame1)
+        # if angle is not None:#如果寻到线了
+        #     self.line_flag = 1
+        #     self.Car_Yaw  = angle #零阶保持
+        # else:
+        #     self.line_flag = 0
     
         #################################具体任务##########################################################
         if(self.task_state==1 or self.task_state==4):#从旋转圆盘中抓取物料
             
             list_usb1 = GetColor_usb1(frame1,self.task_list[self.task_id-1])#识别颜色物块
-            if(len(list_usb1)>0):#检测到目标
-                self.index = 0#清空未检测目标计数器，有必要，很有必要
+            if(len(list_usb1)>0):
 
-                self.object_X,self.object_Y =GetCameraPosition(list_usb1[3],list_usb1[4],70/57.3,self.task_state)#得到世界坐标
-                self.Is_aim_FLAG = self.color_filter.update(list_usb1[0])#滑动窗口滤波
+                self.Is_aim_FLAG = list_usb1[0]#滑动窗口滤波
+                self.index = 0
+                self.object_X,self.object_Y =GetCameraPosition(list_usb1[3],list_usb1[4],1.2217305,self.task_state)#得到世界坐标
 
-                if(self.Is_aim_FLAG!=self.wait_color and self.wait_color !=0):#产生了变化
-                    self.if_color_change = 1#
-                    #只有这个任务需要不
-                    self.start_time= time.time()#只进一次
+                
+                if(self.Is_aim_FLAG!=self.last_color and self.last_color !=0):#产生了变化
+                    self.if_color_change = 1#是否颜色改变#能进来，颜色变化了，并且初始颜色不等于0
+                    self.start_time= time.time()#从颜色改变开始计时，每次颜色改变都计时！！！！！！！！！！！！！！！！
+                
+
                 self.this_time = time.time()
 
                 if self.start_time is not None:
@@ -218,13 +221,13 @@ class SubscriberNode():
                     self.IFloop =0.0
                     self.flag_complete = 1#标志颜色改变的位
                
-                #新无聊转动进来
+                #新物料转动进来
                 if(self.flag_complete ==1):
     
-                    if(time_span>1.0):
+                    if(time_span>0.6):
                         self.IFloop =1.0
-                    if(self.df_1.define(list_usb1[3],324,80)==1 and self.df_2.define(list_usb1[4],240,80)):
-                        self.IFloop = 0
+                    if(time_span>2.5):
+                        self.IFloop = 0.0
                         if(self.Is_aim_FLAG==self.task_list[self.task_id-1]):
                             self.Okseize = 1.0
                         else:
@@ -233,40 +236,52 @@ class SubscriberNode():
                         self.Okseize = 0.0
                 else:
                         self.Okseize = 0.0
-                        
             else:
                 self.index+=1
                 
             if(self.Is_aim_FLAG !=0):
-                self.wait_color = self.Is_aim_FLAG 
+                self.last_color = self.Is_aim_FLAG 
+
 
 #############################################放置圆环############################################################
         elif(self.task_state==2 or self.task_state==3 or self.task_state==5):#对准圆环，粗加工，暂存区，第二次粗加工
-       
-            list_usb1 = GetCenterColor_usb1(frame1)#着重修改这个函数
+
+            list_usb1= []
+            if(self.serial.color_loop is not None):
+                list_usb1 = GetCenterColor_usb1_all(frame1,int(self.serial.color_loop)+5)#着重修改这个函数
+                
             
-            if(len(list_usb1)>0):#是否检测到目标
-                
-                X,Y =GetCameraPosition(list_usb1[3],list_usb1[4],70/57.3,self.task_state)#todo看看是否一定会检测到直线
-                
+            if(len(list_usb1)>0):#
+                X,Y =GetCameraPosition(list_usb1[3],list_usb1[4],1.2217305,self.task_state)#todo看看是否一定会检测到直线
                 self.object_X = X
                 self.object_Y = Y
-                #print("object_X",self.object_X)
+                self.Is_aim_FLAG = int(self.serial.color_loop)
+                if(int(self.Is_aim_FLAG)!=int(self.last_color) ):#
+                    self.loop_flag +=1
+                    self.start_time= time.time()#从颜色改变开始计时，
                 span_time = time.time()-self.start_time
-                cv2.putText(frame1, str(span_time), (320,240), cv2.FONT_HERSHEY_SIMPLEX,.9, (0,255,0), 2)
-                if((time.time()-self.start_time)>=8):#是否有稳定的目标存在#todo调整参数
+                cv2.putText(frame1, str(self.last_color), (320,240), cv2.FONT_HERSHEY_SIMPLEX,.9, (255,255,255), 2)
+                if((span_time)>=2):#是否有稳定的目标存在#todo调整参数
                     self.IFloop =1.0#闭环
-                    self.Is_aim_FLAG = list_usb1[0]
-                    if(self.df_1.define(list_usb1[3],324,30)==1)and (self.df_2.define(list_usb1[4],240,30)==1) and (list_usb1[0]==2):#如果稳定了
-                        self.Okseize = 1.0
-                        self.IFloop =0.0#抓的时候让闭环=0
+                    if(self.loop_flag == 1):
+                        if(span_time>8):#如果稳定了
+                            self.take_flag = 1.0
+                            self.IFloop =0.0#抓的时候让闭环=0
+                        else:
+                            self.take_flag = 0.0
                     else:
-                        self.Okseize = 0.0
+                        if(span_time>=4):#如果稳定了
+                            self.take_flag = 1.0
+                            self.IFloop =0.0#抓的时候让闭环=0
+                        else:
+                            self.take_flag = 0.0
                 else:
-      
-                    self.Okseize = 0.0
+                    self.take_flag = 0.0
             else:
                 self.index+=1
+            
+            if(self.Is_aim_FLAG!= 0):#没检测到目标，is——aim——flabg
+                self.last_color = self.Is_aim_FLAG
 
     ####################码垛#################################################################
         else:
@@ -275,12 +290,12 @@ class SubscriberNode():
             #看见了颜色色块
             if(len(list_usb1)>0):#是否检测到目标
                 self.index = 0
-                X,Y =GetCameraPosition(list_usb1[3],list_usb1[4],70/57.3,self.task_state)#假设都是直的
+                X,Y =GetCameraPosition(list_usb1[3],list_usb1[4],1.2217305,self.task_state)#假设都是直的
                 
                 self.object_X = X
                 self.object_Y = Y
                 
-                if((time.time()-self.start_time)>2.5 and list_usb1[0] == 2):#是否有稳定的目标存在
+                if((time.time()-self.start_time)>3.5 and list_usb1[0] == 2):#是否有稳定的目标存在
                     self.IFloop =1.0
                     self.Is_aim_FLAG = list_usb1[0]
                     if (time.time()-self.start_time)>6.5 and self.df_1.define(list_usb1[3],324,30) and self.df_2.define(list_usb1[4],240,30) and list_usb1[0]==2:#如果稳定了
@@ -319,10 +334,6 @@ class SubscriberNode():
         if(self.index >=10):
             self.Is_aim_FLAG =0
 
-        #记录上一个颜色的变量只记录颜色，而不会记录丢失颜色的0
-        if(self.Is_aim_FLAG!= 0):
-            self.wait_color = self.Is_aim_FLAG
-        
 
 
       
@@ -353,7 +364,7 @@ class SubscriberNode():
         self.object_Y =0.0
         self.object_Z =0.0
         self.Okseize = 0.0
-        self.Task_Data2 = 0.0
+        self.take_flag = 0.0
         self.Task_Data3 = 0.0
         self.Task_Data4 = 0.0
         self.Task_Data5 = 0.0
@@ -367,7 +378,7 @@ class SubscriberNode():
         self.object_X = self.ab_x.ab_filte(self.object_X)
         self.object_Y = self.ab_y.ab_filte(self.object_Y)
         
-        self.datanum = [self.Is_aim_FLAG,self.line_flag,self.QRcode,self.color,self.H,self.IFloop,self.Car_Yaw,self.object_X,self.object_Y,self.object_Z,self.Okseize,self.Task_Data2,self.Task_Data3,self.Task_Data4,self.Task_Data5,self.Task_Data6]
+        self.datanum = [self.Is_aim_FLAG,self.line_flag,self.QRcode,self.color,self.H,self.IFloop,self.Car_Yaw,self.object_X,self.object_Y,self.object_Z,self.Okseize,self.take_flag,self.Task_Data3,self.Task_Data4,self.Task_Data5,self.Task_Data6]
         #print("串口发送数据",self.datanum)
         self.serial.Send_message(self.datanum)
 
@@ -383,7 +394,8 @@ class SubscriberNode():
         cv2.putText(frame2, "angle:"+str(self.Car_Yaw*57.3), (0,125), cv2.FONT_HERSHEY_SIMPLEX,.9, (0, 255, 0), 2)
         cv2.putText(frame1, "IFCOLORCHANGE:"+str(self.if_color_change), (350,75), cv2.FONT_HERSHEY_SIMPLEX,.9, (0, 255, 0), 2)      
         cv2.putText(frame2, "QRcode:"+str(self.QRcode), (0,175), cv2.FONT_HERSHEY_SIMPLEX,.9, (0, 255, 0), 2)
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         
+        cv2.putText(frame1, "Color_loop:"+str(self.serial.color_loop), (350,125), cv2.FONT_HERSHEY_SIMPLEX,.9, (0, 255, 0), 2)      
+        cv2.putText(frame2, "If_take :"+str(self.take_flag), (0,225), cv2.FONT_HERSHEY_SIMPLEX,.9, (0, 255, 0), 2)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          
     ##############################################视频录制#############################################
 
     def Init_video(self):
@@ -427,3 +439,6 @@ class SubscriberNode():
 
 
 node = SubscriberNode()  # 创建ROS2节点对象并进行初始化
+
+ 
+ 
